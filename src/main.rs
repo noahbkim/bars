@@ -3,8 +3,9 @@ extern crate libpulse_binding as pulse;
 
 
 struct Visualizer<'v> {
-    context: pulse::Context,
-    stream: Option<pulse::Stream>
+    context: pulse::Context<'v>,
+    stream: Option<pulse::Stream<'v>>,
+    counter: i16,
 }
 
 
@@ -23,7 +24,7 @@ impl<'v> Visualizer<'v> {
             &properties).unwrap();
 
         /* Create the visualizer */
-        let visualizer = Vizualizer { context };
+        let visualizer = Vizualizer { context, counter: 0 };
         return visualizer;
 
     }
@@ -58,7 +59,7 @@ impl<'v> Visualizer<'v> {
     }
 
     /** Setup stream recording. */
-    fn record(&mut self, monitor: &str) {
+    fn record(&mut self) {
 
         /** Create the stream specification. */
         let spec = pulse::sample::Spec {
@@ -78,14 +79,25 @@ impl<'v> Visualizer<'v> {
         stream.set_read_callback(move |stream, size| {
             self.read(stream, size);
         });
-        stream.connect_record(Some(monitor), None, None);
+        stream.connect_record(None, None, None);
         self.stream = Some(stream);
 
     }
 
     /** Called when there is data ready for reading in the stream. */
     fn read(&mut self, mut stream: pulse::stream::Stream, size: size_t) {
-
+        if self.counter > 30 {
+            if Some(stream) = self.stream {
+                stream.disconnect();
+            }
+        }
+        match stream.peek() {
+            Ok(data) => {
+                eprintln!(data);
+            },
+            Err(_) => {}
+        }
+        self.counter += 1;
     }
 
 }
@@ -100,10 +112,18 @@ fn draw(context: piston::Context, graphics: &mut piston::G2d) {
 }
 
 
-fn main() {
+fn graphics() {
     let settings = WindowSettings::new("Bars", [640, 480]).exit_on_esc(true);
     let mut window: piston::PistonWindow = settings.build().unwrap();
     while let Some(event) = window.next() {
         window.draw_2d(&event, &draw);
     }
+}
+
+
+fn main() {
+    let mut mainloop = pulse::mainloop::standard::Mainloop::new().unwrap();
+    let mut visualizer = Visualizer::new(mainloop);
+    visualizer.connect();
+    visualizer.record();
 }
